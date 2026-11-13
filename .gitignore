@@ -1,0 +1,8 @@
+bin/
+obj/
+*.user
+.vs/
+AppPackages/
+output/
+Facet3D/Shaders/*.cso
+*.pfx

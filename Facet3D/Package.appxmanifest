@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  IgnorableNamespaces="uap mp">
+
+  <Identity Name="Facet3D.Xbox" Publisher="CN=Facet3D" Version="1.0.0.0" />
+  <mp:PhoneIdentity PhoneProductId="6b1f9c62-3c0e-4d55-9f43-2a6f0e8c7d21" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+
+  <Properties>
+    <DisplayName>Facet3D</DisplayName>
+    <PublisherDisplayName>Facet3D</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="x-generate"/>
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="Facet3D.App">
+      <uap:VisualElements DisplayName="Facet3D" Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" Description="Controller-first 3D modelling and animation with USB model import/export"
+        BackgroundColor="#26282C">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"/>
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#26282C"/>
+      </uap:VisualElements>
+      <Extensions>
+        <!-- Removable storage access on Xbox is limited to file types the app declares. -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="facet3dmodels">
+            <uap:DisplayName>3D model</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.glb</uap:FileType>
+              <uap:FileType>.gltf</uap:FileType>
+              <uap:FileType>.bin</uap:FileType>
+              <uap:FileType>.obj</uap:FileType>
+              <uap:FileType>.mtl</uap:FileType>
+              <uap:FileType>.fbx</uap:FileType>
+              <uap:FileType>.stl</uap:FileType>
+              <uap:FileType>.ply</uap:FileType>
+              <uap:FileType>.dae</uap:FileType>
+              <uap:FileType>.3ds</uap:FileType>
+              <uap:FileType>.off</uap:FileType>
+              <uap:FileType>.png</uap:FileType>
+              <uap:FileType>.jpg</uap:FileType>
+              <uap:FileType>.jpeg</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <uap:Capability Name="removableStorage" />
+  </Capabilities>
+</Package>

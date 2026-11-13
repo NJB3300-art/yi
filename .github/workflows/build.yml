@@ -1,0 +1,97 @@
+name: Build Facet3D (Xbox UWP)
+
+# Builds the Facet3D UWP app for Xbox (x64, sideload / Dev Mode).
+# Every push uploads the package as a workflow artifact.
+# Pushing a tag like v1.0.0 (or running manually with a tag) also publishes a GitHub Release.
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional release tag to create (e.g. v1.0.0). Leave empty for build-only.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Precompile shaders (fxc)
+        shell: pwsh
+        run: |
+          $fxc = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\fxc.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $fxc) { Write-Warning "fxc.exe not found; the app will compile shaders at runtime"; exit 0 }
+          & $fxc.FullName /nologo /T vs_4_0 /E VS /O3 /Fo Facet3D\Shaders\Scene_vs.cso Facet3D\Shaders\Scene.hlsl
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & $fxc.FullName /nologo /T ps_4_0 /E PS /O3 /Fo Facet3D\Shaders\Scene_ps.cso Facet3D\Shaders\Scene.hlsl
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Create self-signed signing certificate
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=Facet3D" -KeyUsage DigitalSignature -FriendlyName "Facet3D" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+          $pw = [guid]::NewGuid().ToString("N")
+          "CERT_PW=$pw" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Export-PfxCertificate -Cert "Cert:\CurrentUser\My\$($cert.Thumbprint)" -FilePath "$pwd\cert.pfx" -Password (ConvertTo-SecureString -String $pw -AsPlainText -Force) | Out-Null
+          Export-Certificate -Cert "Cert:\CurrentUser\My\$($cert.Thumbprint)" -FilePath "$pwd\Facet3D-signing.cer" | Out-Null
+
+      - name: Restore and build (Release x64, .NET Native)
+        shell: pwsh
+        run: |
+          msbuild Facet3D\Facet3D.csproj /restore /m /nologo /v:minimal `
+            /p:Configuration=Release /p:Platform=x64 `
+            /p:AppxBundle=Never /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:AppxPackageDir="$pwd\output\\" `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateKeyFile="$pwd\cert.pfx" `
+            /p:PackageCertificatePassword=$env:CERT_PW
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Collect package and dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Get-ChildItem -Path output -Recurse -Include *.msix,*.appx,*.msixbundle,*.appxbundle |
+            Where-Object { $_.FullName -notmatch '\\Dependencies\\' } | Copy-Item -Destination release
+          Get-ChildItem -Path output -Recurse -Directory -Filter Dependencies | ForEach-Object {
+            Get-ChildItem -Path $_.FullName -Recurse -Include *.appx,*.msix | Where-Object { $_.FullName -match '\\x64\\' } | Copy-Item -Destination release
+          }
+          Copy-Item Facet3D-signing.cer release
+          Get-ChildItem release
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Facet3D-Xbox-x64
+          path: release/*
+
+      - name: Zip release files
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
+        shell: pwsh
+        run: Compress-Archive -Path release\* -DestinationPath Facet3D-Xbox-x64.zip
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Facet3D for Xbox ${{ github.event.inputs.tag || github.ref_name }}
+          body: |
+            Facet3D - controller-first 3D modelling and animation for Xbox (Dev Mode sideload).
+            Install with Xbox Device Portal: upload the Facet3D .msix as the app package and add the dependency .appx files
+            (Microsoft.NET.Native.Framework, Microsoft.NET.Native.Runtime, Microsoft.VCLibs) from this release.
+            The .cer is only needed to sideload on a Windows PC.
+          files: |
+            Facet3D-Xbox-x64.zip
+            release/*
+          fail_on_unmatched_files: false
