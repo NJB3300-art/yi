@@ -13,7 +13,6 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Shapes;
 
 namespace Facet3D
 {
@@ -194,7 +193,7 @@ namespace Facet3D
                     if (a != null)
                         foreach (var k in a.Keys)
                         {
-                            var r = new Rectangle { Width = 7, Height = 7, Fill = new SolidColorBrush(Color.FromArgb(255, 255, 210, 80)), RenderTransform = new RotateTransform { Angle = 45, CenterX = 3.5, CenterY = 3.5 } };
+                            var r = new Windows.UI.Xaml.Shapes.Rectangle { Width = 7, Height = 7, Fill = new SolidColorBrush(Color.FromArgb(255, 255, 210, 80)), RenderTransform = new RotateTransform { Angle = 45, CenterX = 3.5, CenterY = 3.5 } };
                             Canvas.SetLeft(r, k.Frame / (double)Math.Max(1, _ed.Scene.FrameEnd) * (w - 3) - 2);
                             Canvas.SetTop(r, 6.5);
                             KeyCanvas.Children.Add(r);
