@@ -1,0 +1,77 @@
+name: Store package (Microsoft Store / Xbox)
+
+# Builds the .msixupload file you upload in Partner Center.
+# Before running: in Partner Center reserve the app name, open Product identity, and copy the three values
+# into this repo under Settings > Secrets and variables > Actions > Variables:
+#   STORE_IDENTITY_NAME            (Package/Identity/Name, e.g. 12345YourName.Facet3D)
+#   STORE_PUBLISHER                (Package/Identity/Publisher, e.g. CN=1A2B3C4D-....)
+#   STORE_PUBLISHER_DISPLAY_NAME   (Package/Properties/PublisherDisplayName)
+# Then run this workflow from the Actions tab and download the "Facet3D-Store-Upload" artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (must increase each submission, last part must be 0), e.g. 1.0.0.0'
+        required: true
+        default: '1.0.0.0'
+
+jobs:
+  store:
+    runs-on: windows-2022
+    env:
+      STORE_IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
+      STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+      STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
+      PKG_VERSION: ${{ github.event.inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Partner Center identity values
+        shell: pwsh
+        run: |
+          foreach ($n in 'STORE_IDENTITY_NAME','STORE_PUBLISHER','STORE_PUBLISHER_DISPLAY_NAME') {
+            if (-not (Get-Item "env:$n" -ErrorAction SilentlyContinue).Value) { Write-Error "Repository variable $n is not set (see comments at the top of store.yml)"; exit 1 }
+          }
+          if ($env:PKG_VERSION -notmatch '^\d+\.\d+\.\d+\.0$') { Write-Error "Version must look like 1.0.0.0 (last number 0 for the Store)"; exit 1 }
+
+      - name: Apply Store identity to the manifest
+        shell: pwsh
+        run: |
+          $path = "Facet3D\Package.appxmanifest"
+          [xml]$x = Get-Content $path
+          $x.Package.Identity.Name = $env:STORE_IDENTITY_NAME
+          $x.Package.Identity.Publisher = $env:STORE_PUBLISHER
+          $x.Package.Identity.Version = $env:PKG_VERSION
+          $x.Package.Properties.PublisherDisplayName = $env:STORE_PUBLISHER_DISPLAY_NAME
+          $x.Save((Resolve-Path $path))
+          Get-Content $path | Select-Object -First 12
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Precompile shaders (fxc)
+        shell: pwsh
+        run: |
+          $fxc = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\fxc.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          & $fxc.FullName /nologo /T vs_4_0 /E VS /O3 /Fo Facet3D\Shaders\Scene_vs.cso Facet3D\Shaders\Scene.hlsl
+          & $fxc.FullName /nologo /T ps_4_0 /E PS /O3 /Fo Facet3D\Shaders\Scene_ps.cso Facet3D\Shaders\Scene.hlsl
+
+      - name: Build Store upload package
+        shell: pwsh
+        run: |
+          msbuild Facet3D\Facet3D.csproj /restore /m /nologo /v:minimal `
+            /p:Configuration=Release /p:Platform=x64 `
+            /p:UapAppxPackageBuildMode=StoreUpload /p:AppxBundle=Always /p:AppxBundlePlatforms=x64 `
+            /p:AppxPackageSigningEnabled=false `
+            /p:AppxPackageDir="$pwd\store\\"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem store -Recurse -Include *.msixupload,*.appxupload
+
+      - name: Upload Store package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Facet3D-Store-Upload
+          path: |
+            store/**/*.msixupload
+            store/**/*.appxupload
